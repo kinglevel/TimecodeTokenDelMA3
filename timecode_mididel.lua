@@ -4,6 +4,13 @@ local signalTable    = select(3,...);
 local my_handle      = select(4,...);
 ----------------------------------------------------------------------------------------------------------------
 
+
+local PlugTitle = "Timecode Token Deleter"
+
+local messageDescription =  "USE WITH CAUTION, TAKE BACKUPS.\n\n"..
+                            "This tool will search and delete all objects with given name in your timecode.\n\n"
+
+
 -- Almost never tested
 
 -- Github: https://github.com/kinglevel
@@ -54,40 +61,8 @@ end
 
 
 
-
---Magic
-local function delTCstuff (vartg, vartn)
-    Printf("##### Timecode MIDIRemote delete #####")
-
-    --int
-    local tg = vartg
-    --str
-    local tn = vartn
-
-    local s=DataPool().Timecodes[tn][tg]
-    local d=#s
-
-    for i = 1, d do
-
-      if string.match(s[i].name, "MIDIRemote") then
-        Printf((i-1) .. " " .. s[i].name)
-        s:Delete(i)
-      end
-
-    end
-
-end
-
-
-
-
 ---settings
 local function settingsWindow(displayHandle)
-
-    --retrieve variables
-    local userVar = UserVars()
-    local resultTN = GetVar(userVar, "tcDelName")
-    local resultTG = GetVar(userVar, "tcDelTrackGroup")
 
 
     --set window settings
@@ -106,16 +81,18 @@ local function settingsWindow(displayHandle)
         },
 
         inputs={
-            {name="TC Object name", value=resultTN},
-            {name="TC Object TrackGroup", value=resultTG}
+            {name="Timecode", value=""},
+            {name="Remove", value="<Token>"}
         }
     }
+
 
 
 
     -- spawn window
     local userInput = MessageBox(options)
     local userConfirm = userInput.result
+
 
     -- Abort
     if userConfirm == 0 then
@@ -125,38 +102,29 @@ local function settingsWindow(displayHandle)
 
 
 
-
-
     -- Run
     if userConfirm == 1 then
-      Printf("Confirming...")
 
+      --get all variables from the user
+      local timecode = userInput.inputs["Timecode"]
+      local remove = userInput.inputs["Remove"]
 
-      local userConfirmRun = confirmbox(displayHandle, "Are you sure?")
+      local userConfirmRun = confirmbox(displayHandle,
+      "Are you sure you want to delete ALL:\n" ..
+      "Objects: " .. remove .. "\n" ..
+      "From\n" ..
+      "timecode: " .. timecode .. "\n")
 
       if userConfirmRun == true then
         Printf("User confirmed!")
-
-          local setSuccess = SetVar(userVar, "tcDelName", userInput.inputs["TC Object name"])
-          local setSuccess = SetVar(userVar, "tcDelTrackGroup", userInput.inputs["TC Object TrackGroup"])
-
-          local resultVarTN = GetVar(userVar, "tcDelName")
-          local resultVarTG = tonumber(GetVar(userVar, "tcDelTrackGroup"))
-
-          --magic
-          delTCstuff(resultVarTG, resultVarTN)
-
+        return timecode, remove
       elseif userConfirmRun == false then
         Printf("User aborted")
+        return false
       end
 
 
     end
-
-
-
-
-
 
 end
 
@@ -165,13 +133,56 @@ end
 
 
 
+local function SearchObjects(obj, string)
+  --Modified GMA3helper:tree
+  local objects = {}
+
+  local function printDirectory(dir, prefix, depth)
+      local i = 1;
+      while dir[i] do
+          local content = dir[i]
+          --Get all the intresting event classes
+          if content.name == string then
+            table.insert(objects, content)
+          end
+          
+          printDirectory(content,prefix..'|   ', depth+1) -- use recursion
+          i = i + 1;
+      end
+  end
+
+  printDirectory(obj,'',1)
+
+  return objects
+end
 
 
-local function Main ()
 
 
-  settingsWindow()
 
+
+local function DeleteObjects(table)
+  local tablesize = #table
+    for i = 1, tablesize do
+        table[i]:Parent():Delete(table[i].index)
+    end
+end
+
+
+
+
+
+local function Main(displayHandle)
+
+  --Get settings and confirmation from user
+  local timecode, remove = settingsWindow(displayHandle)
+
+  --if all set, go
+  if timecode ~= "" then
+      local p = DataPool().Timecodes[tonumber(timecode)]
+      local s = SearchObjects(p, remove)
+      local k = DeleteObjects(s)
+  end
 
 end
 
