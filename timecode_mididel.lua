@@ -11,10 +11,12 @@ local messageDescription =  "USE WITH CAUTION, TAKE BACKUPS.\n\n"..
                             "This tool will search and delete all objects with given name in your timecode.\n\n"
 
 
--- Almost never tested
+-- Almost never tested.
+-- No support is given.
 
 -- Github: https://github.com/kinglevel
--- Please commit or post updates for the community.
+-- Instagram: @kinglevel
+-- Please commit or post updates for the community
 
 
 --[[
@@ -42,6 +44,9 @@ d33N:       /MMh.     dMMMMs     -dMM.       :N33d
     -+ymMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMNho/.
 
 "Vision will blind. Severance ties. Median am I. True are all lies"
+
+
+README: https://github.com/kinglevel/TimecodeTokenDelMA3
 
 ]]--
 
