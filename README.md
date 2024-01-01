@@ -1,6 +1,6 @@
 # TimecodeTokenDelMA3
 
-This will look for Token events in a timecode and delete all of them.
+This will look for Token events in a timecode and delete all of them, for GrandMA3.
 Use with caution.
 
 
