@@ -6,10 +6,7 @@ local my_handle      = select(4,...);
 
 
 local PlugTitle = "Timecode Token Deleter"
-
-local messageDescription =  "USE WITH CAUTION, TAKE BACKUPS.\n\n"..
-                            "This tool will search and delete all objects with given name in your timecode.\n\n"
-
+local name = "timecode_mididel"
 
 -- Almost never tested.
 -- No support is given.
@@ -51,85 +48,71 @@ README: https://github.com/kinglevel/TimecodeTokenDelMA3
 ]]--
 
 
-
-
-
--- Confirm
-local function confirmbox(displayHandle, message)
-  if Confirm(PlugTitle, message) then
-    return true
-  else
-    return false
-  end
-end
+require("gma3_helpers")
 
 
 
 
----settings
-local function settingsWindow(displayHandle)
-
-
-    --set window settings
-    local options = {
-        title=PlugTitle,
-        backColor="Global.Focus",
-        icon="invert",
-
-        message=messageDescription,
-
-        display= nil,
-
-        commands={
-            {value=0, name="Abort"},
-            {value=1, name="Run"}
-        },
-
-        inputs={
-            {name="Timecode", value=""},
-            {name="Remove", value="<Token>"}
-        }
-    }
-
-
-
-
-    -- spawn window
-    local userInput = MessageBox(options)
-    local userConfirm = userInput.result
-
-
-    -- Abort
-    if userConfirm == 0 then
-        Printf("Aborted by user")
-        return false
-    end
-
-
-
-    -- Run
-    if userConfirm == 1 then
-
-      --get all variables from the user
-      local timecode = userInput.inputs["Timecode"]
-      local remove = userInput.inputs["Remove"]
-
-      local userConfirmRun = confirmbox(displayHandle,
-      "Are you sure you want to delete ALL:\n" ..
-      "Objects: " .. remove .. "\n" ..
-      "From\n" ..
-      "timecode: " .. timecode .. "\n")
-
-      if userConfirmRun == true then
-        Printf("User confirmed!")
-        return timecode, remove
-      elseif userConfirmRun == false then
-        Printf("User aborted")
-        return false
+local function deepcopy(orig)
+  local orig_type = type(orig)
+  local copy
+  if orig_type == 'table' then
+      copy = {}
+      for orig_key, orig_value in next, orig, nil do
+          copy[deepcopy(orig_key)] = deepcopy(orig_value)
       end
+      setmetatable(copy, deepcopy(getmetatable(orig)))
+  else -- number, string, boolean, etc
+      copy = orig
+  end
+  return copy
+end
 
 
-    end
+
+
+local function tablesDiffer(table1, table2)
+  -- Check if both tables are actually tables
+  if type(table1) ~= "table" or type(table2) ~= "table" then
+      return false
+  end
+
+  -- Function to compare two values
+  local function compareValues(v1, v2)
+      if type(v1) == "table" and type(v2) == "table" then
+          return tablesDiffer(v1, v2)
+      else
+          return v1 ~= v2
+      end
+  end
+
+  -- Check all keys and values in table1 against table2
+  for key, value in pairs(table1) do
+      if compareValues(value, table2[key]) then
+          return true
+      end
+  end
+
+  -- Check all keys and values in table2 against table1
+  for key, value in pairs(table2) do
+      if compareValues(value, table1[key]) then
+          return true
+      end
+  end
+
+  return false
+end
+
+
+
+
+
+
+local function deleteTableObjEntry(tokenstable)
+
+  for i = 1, #tokenstable do
+    tokenstable[i]:Parent():Delete(tokenstable[i].index)
+  end
 
 end
 
@@ -138,27 +121,58 @@ end
 
 
 
-local function SearchObjects(obj, string)
-  --Modified GMA3helper:tree
-  local objects = {}
 
-  local function printDirectory(dir, prefix, depth)
-      local i = 1;
-      while dir[i] do
-          local content = dir[i]
-          --Get all the intresting event classes
-          if content.name == string then
-            table.insert(objects, content)
+
+
+local function searchToken()
+
+  local dp = 1
+  local tc = 2
+
+
+
+  local x = Root()["ShowData"]["Datapools"][dp]["Timecodes"][2]
+
+  local tokenstable = {}
+
+  --the sheebaaang
+  for i = 1, #x do
+
+    for t = 1, #x[i] do
+
+      local track = x[i][t]
+
+      --only work with tracks
+      if track:GetClass() == "Track" then
+
+        --in time ranges
+        for timerange = 1, #track do
+
+          -- and subtracks
+          local cmdsubtrack = track[timerange][1]
+
+          --get all events
+          for event = 1, #cmdsubtrack do
+
+            if cmdsubtrack[event].name == "<Token>" then
+              table.insert(tokenstable, cmdsubtrack[event])
+              --gma3_helpers:dump(cmdsubtrack[event])
+
+            end
+
           end
-          
-          printDirectory(content,prefix..'|   ', depth+1) -- use recursion
-          i = i + 1;
+
+        end
+
       end
+
+    end
   end
 
-  printDirectory(obj,'',1)
 
-  return objects
+return tokenstable
+
+
 end
 
 
@@ -166,12 +180,32 @@ end
 
 
 
-local function DeleteObjects(table)
-  local tablesize = #table
-    for i = 1, tablesize do
-        table[i]:Parent():Delete(table[i].index)
+local function loop()
+
+
+  local previous = searchToken()
+
+
+  while true do
+    local current = searchToken()
+    --check if stuff has changed
+    if tablesDiffer(current, previous) then
+      Printf("stuff happend")
+      deleteTableObjEntry(current)
     end
+    --make a real copy of the table to compare
+    previous = deepcopy(current)
+    --stability
+    --sleep(0.1)
+  end
+
+
+
 end
+
+
+
+
 
 
 
@@ -179,17 +213,36 @@ end
 
 local function Main(displayHandle)
 
-  --Get settings and confirmation from user
-  local timecode, remove = settingsWindow(displayHandle)
-
-  --if all set, go
-  if timecode ~= "" then
-      local p = DataPool().Timecodes[tonumber(timecode)]
-      local s = SearchObjects(p, remove)
-      local k = DeleteObjects(s)
+  --init
+  if not MidiDel then
+    MidiDel = nil
   end
 
+  -- init
+  if MidiDel == nil then
+    MidiDel = 0
+  end
+
+
+
+  -- startup
+  if MidiDel == 0 then
+    Printf(name.. ": Turning on")
+    MidiDel = 1
+    loop()
+  end
+
+  -- turn off
+  if MidiDel == 1 then
+    Printf(name.. ": Turning off")
+    MidiDel = 0
+    Cmd("off plugin '"..name.."'")
+  end
+
+
 end
+
+
 
 
 
