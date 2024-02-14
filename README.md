@@ -1,6 +1,9 @@
 # TimecodeTokenDelMA3
 
-This will look for Token events in a timecode and delete all of them, for GrandMA3.
+This will look for Token events in a timecode and delete all of them, in realtime, for GrandMA3.
+
+it is set to hook onto timecode 2 in the src
+
 Use with caution.
 
 
